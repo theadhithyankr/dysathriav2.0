@@ -18,6 +18,8 @@ import {
   Flame,
   Plus,
   Trophy,
+  Volume2,
+  VolumeX,
 } from "lucide-react"
 import { getToken, API_BASE } from "@/lib/auth"
 import { useUser } from "@/lib/UserContext"
@@ -66,6 +68,28 @@ const SEV_BADGE = {
   Healthy:  "bg-emerald-100 text-emerald-700 border-emerald-200",
   Moderate: "bg-amber-100   text-amber-700   border-amber-200",
   Severe:   "bg-red-100     text-red-700     border-red-200",
+}
+
+// ── TTS hook ─────────────────────────────────────────────────────────────────
+function useTTS() {
+  const [speaking, setSpeaking] = useState(false)
+
+  function speak(text) {
+    window.speechSynthesis.cancel()
+    const utter = new SpeechSynthesisUtterance(text)
+    utter.rate = 0.92
+    utter.onstart = () => setSpeaking(true)
+    utter.onend   = () => setSpeaking(false)
+    utter.onerror = () => setSpeaking(false)
+    window.speechSynthesis.speak(utter)
+  }
+
+  function stop() {
+    window.speechSynthesis.cancel()
+    setSpeaking(false)
+  }
+
+  return { speaking, speak, stop }
 }
 
 // ── Mini recorder hook ────────────────────────────────────────────────────────
@@ -149,9 +173,10 @@ export default function TherapyExercisePage() {
   const initiallyCompletedRef = useRef(false) // was today already done on load
 
   const recorder = useMiniRecorder(token)
+  const tts       = useTTS()
 
   useEffect(() => { loadTodayPlan() }, [])
-  useEffect(() => { recorder.reset() }, [current])
+  useEffect(() => { recorder.reset(); tts.stop() }, [current])
 
   async function loadTodayPlan() {
     setLoadingPlan(true)
@@ -455,7 +480,26 @@ export default function TherapyExercisePage() {
                       <CardTitle className="text-lg text-[#1E3A5F]">{exercise.title}</CardTitle>
                       <CardDescription>Step {current + 1} of {exercises.length}</CardDescription>
                     </div>
-                    {isCompleted && <Badge variant="mild" className="shrink-0">Done</Badge>}
+                    <div className="flex items-center gap-2 shrink-0">
+                      {isCompleted && <Badge variant="mild">Done</Badge>}
+                      <button
+                        onClick={() => {
+                          if (tts.speaking) {
+                            tts.stop()
+                          } else {
+                            const parts = [exercise.title, exercise.instruction]
+                            if (exercise.prompt) parts.push("Practice prompt: " + exercise.prompt)
+                            tts.speak(parts.join(". "))
+                          }
+                        }}
+                        title={tts.speaking ? "Stop reading" : "Read aloud"}
+                        className="rounded-full p-1.5 hover:bg-[#F1F5F9] text-[#64748b] hover:text-[#2A9D8F] transition-colors"
+                      >
+                        {tts.speaking
+                          ? <VolumeX className="h-4 w-4 text-[#2A9D8F]" />
+                          : <Volume2 className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
                 </CardHeader>
 
