@@ -2,8 +2,8 @@
 
 import datetime
 from sqlalchemy import (
-    Column, Integer, String, Float, DateTime,
-    ForeignKey, Text, Boolean,
+    Column, Integer, String, Float, DateTime, Date,
+    ForeignKey, Text, Boolean, UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from .database import Base
@@ -59,3 +59,17 @@ class TherapistPatient(Base):
 
     therapist    = relationship("User", back_populates="therapist_for",
                                  foreign_keys=[therapist_id])
+
+
+class ExercisePlan(Base):
+    """One AI-generated exercise plan per patient per calendar day."""
+    __tablename__ = "exercise_plans"
+    __table_args__ = (UniqueConstraint("patient_id", "plan_date", name="uq_patient_plan_date"),)
+
+    id             = Column(Integer, primary_key=True, index=True)
+    patient_id     = Column(Integer, ForeignKey("users.id"), nullable=False)
+    plan_date      = Column(Date,    nullable=False, index=True)
+    exercises_json = Column(Text,    nullable=False)          # JSON array of exercise dicts
+    completed      = Column(Boolean, default=False, nullable=False)
+    completed_at   = Column(DateTime, nullable=True)
+    created_at     = Column(DateTime, default=datetime.datetime.utcnow)

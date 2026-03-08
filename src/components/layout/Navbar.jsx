@@ -1,4 +1,4 @@
-import { Bell, ChevronDown, Mic } from "lucide-react"
+import { Bell, ChevronDown } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -11,9 +11,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { useNavigate } from "react-router-dom"
+import { useUser } from "@/lib/UserContext"
 
-export default function Navbar({ role = "patient", userName = "Alex Johnson" }) {
+export default function Navbar({ role = "patient", userName }) {
   const navigate = useNavigate()
+  const { user, logout } = useUser()
+  userName = user?.full_name || userName || "User"
   const initials = userName
     .split(" ")
     .map((n) => n[0])
@@ -24,11 +27,9 @@ export default function Navbar({ role = "patient", userName = "Alex Johnson" }) 
     <header className="sticky top-0 z-40 flex h-14 items-center border-b border-[#cbd5e1] bg-white px-4 gap-4">
       {/* Logo */}
       <div className="flex items-center gap-2 mr-4">
-        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#1E3A5F]">
-          <Mic className="h-3.5 w-3.5 text-white" />
-        </div>
+        <img src="/favicon.svg" alt="Dysera" className="h-7 w-7" />
         <span className="hidden sm:block font-semibold text-[#1E3A5F] text-sm">
-          Dysarthria Platform
+          Dysera
         </span>
       </div>
 
@@ -42,10 +43,9 @@ export default function Navbar({ role = "patient", userName = "Alex Johnson" }) 
         {role === "therapist" ? "Speech Therapist" : "Patient"}
       </Badge>
 
-      {/* Notification bell */}
-      <Button variant="ghost" size="icon" className="relative">
+      {/* Notification bell — UI placeholder */}
+      <Button variant="ghost" size="icon" className="relative" disabled>
         <Bell className="h-4 w-4" />
-        <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-[#2A9D8F]" />
       </Button>
 
       {/* Avatar dropdown */}
@@ -68,7 +68,7 @@ export default function Navbar({ role = "patient", userName = "Alex Johnson" }) 
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="text-red-600"
-            onClick={() => navigate("/")}
+            onClick={() => { logout(); navigate("/login", { replace: true }) }}
           >
             Sign Out
           </DropdownMenuItem>

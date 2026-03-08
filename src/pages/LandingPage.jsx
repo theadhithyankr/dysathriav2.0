@@ -58,10 +58,8 @@ export default function LandingPage() {
       <header className="sticky top-0 z-40 border-b border-[#cbd5e1] bg-white">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#1E3A5F]">
-              <Mic className="h-3.5 w-3.5 text-white" />
-            </div>
-            <span className="font-semibold text-[#1E3A5F] text-sm">Dysarthria Platform</span>
+            <img src="/favicon.svg" alt="Dysera" className="h-7 w-7" />
+            <span className="font-semibold text-[#1E3A5F] text-sm">Dysera</span>
           </div>
           <nav className="hidden md:flex items-center gap-6 text-sm text-[#64748b]">
             <a href="#features" className="hover:text-[#1E3A5F] transition-colors">Features</a>
@@ -70,7 +68,7 @@ export default function LandingPage() {
           </nav>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" asChild>
-              <Link to="/patient/dashboard">Sign In</Link>
+              <Link to="/login">Sign In</Link>
             </Button>
           </div>
         </div>
@@ -92,14 +90,8 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-3">
             <Button size="lg" asChild>
-              <Link to="/patient/dashboard">
-                I&apos;m a Patient
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-            <Button size="lg" variant="secondary" asChild>
-              <Link to="/therapist/dashboard">
-                I&apos;m a Therapist
+              <Link to="/login">
+                Get Started
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
@@ -109,10 +101,10 @@ export default function LandingPage() {
         {/* Stats strip */}
         <div className="mt-16 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl">
           {[
-            { value: "94%", label: "Detection accuracy" },
-            { value: "3k+", label: "Active patients" },
-            { value: "120+", label: "Therapy exercises" },
-            { value: "50+", label: "Partner clinics" },
+            { value: "94%",  label: "Detection accuracy" },
+            { value: "AI",   label: "Personalised coaching" },
+            { value: "6+",   label: "Exercises per session" },
+            { value: "Free", label: "Open access" },
           ].map(({ value, label }) => (
             <div key={label} className="border-l-2 border-[#2A9D8F] pl-4">
               <p className="text-2xl font-bold text-[#1E3A5F]">{value}</p>
@@ -180,22 +172,15 @@ export default function LandingPage() {
       </section>
 
       {/* CTA banner */}
-      <section className="bg-[#1E3A5F] py-14">
+      <section id="about" className="bg-[#1E3A5F] py-14">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 text-center">
           <h2 className="text-2xl font-bold text-white mb-3">Ready to get started?</h2>
           <p className="text-[#94b4d4] mb-8 max-w-xl mx-auto">
-            Join thousands of patients and clinicians already using the platform.
+            Dysera is a free, AI-powered platform for dysarthria assessment and guided speech therapy.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-3">
             <Button size="lg" variant="secondary" asChild>
-              <Link to="/patient/dashboard">Start as Patient</Link>
-            </Button>
-            <Button
-              size="lg"
-              className="bg-white text-[#1E3A5F] hover:bg-[#F1F5F9]"
-              asChild
-            >
-              <Link to="/therapist/dashboard">Start as Therapist</Link>
+              <Link to="/login">Get Started</Link>
             </Button>
           </div>
         </div>
@@ -205,12 +190,10 @@ export default function LandingPage() {
       <footer className="border-t border-[#e2e8f0] bg-white py-8">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[#1E3A5F]">
-              <Mic className="h-3 w-3 text-white" />
-            </div>
-            <span className="text-sm font-semibold text-[#1E3A5F]">Dysarthria Platform</span>
+            <img src="/favicon.svg" alt="Dysera" className="h-6 w-6" />
+            <span className="text-sm font-semibold text-[#1E3A5F]">Dysera</span>
           </div>
-          <p className="text-xs text-[#94a3b8]">© 2026 Dysarthria Platform. All rights reserved.</p>
+          <p className="text-xs text-[#94a3b8]">© 2026 Dysera. All rights reserved.</p>
         </div>
       </footer>
     </div>

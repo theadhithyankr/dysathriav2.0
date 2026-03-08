@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Mic, MicOff, Upload, RotateCcw, CheckCircle2, AlertCircle, Info } from "lucide-react"
-
+import { getToken, API_BASE } from "@/lib/auth"
+import { useUser } from "@/lib/UserContext"
 // Convert any audio blob to 16 kHz mono WAV using the Web Audio API.
-// This is necessary because MediaRecorder produces audio/webm which librosa
-// cannot decode on Windows without ffmpeg.
+// MediaRecorder produces audio/webm which librosa cannot decode on Windows without ffmpeg.
 async function toWavBlob(blob) {
   const arrayBuffer = await blob.arrayBuffer()
   const audioCtx = new AudioContext()
@@ -39,32 +39,6 @@ async function toWavBlob(blob) {
   str(36, "data"); v.setUint32(40, pcm.byteLength, true)
   new Int16Array(wavBuffer, 44).set(pcm)
   return new Blob([wavBuffer], { type: "audio/wav" })
-}
-
-// For dev: use a guest token so the analyze endpoint works without a full login UI.
-// Replace this with a real token from localStorage once auth is wired up.
-async function getDevToken() {
-    let res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: "username=dev%40dysarthria.app&password=devpass123",
-    })
-    
-    if (!res.ok) {
-      await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "dev@dysarthria.app", password: "devpass123", full_name: "Dev Patient", role: "patient" }),
-      })
-      res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: "username=dev%40dysarthria.app&password=devpass123",
-      })
-    }
-    
-  const data = await res.json()
-  return data.access_token
 }
 
 const SEVERITY_CONFIG = {
@@ -120,6 +94,7 @@ function Waveform({ active }) {
 }
 
 export default function RecordDetectPage() {
+  const { user } = useUser()
   const [recording, setRecording] = useState(false)
   const [recorded, setRecorded] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
@@ -214,7 +189,7 @@ export default function RecordDetectPage() {
     setAnalyzeProgress(10)
     try {
       setAnalyzeProgress(25)
-      const token = await getDevToken()
+      const token = getToken()
       setAnalyzeProgress(50)
       const form = new FormData()
       form.append("file", audioBlobRef.current, "recording.wav")
@@ -254,7 +229,7 @@ export default function RecordDetectPage() {
   const isPositiveOutcome = ["Healthy", "Mild", "Control"].includes(severity)
 
   return (
-    <AppLayout role="patient" userName="Alex Johnson">
+    <AppLayout role="patient" userName={user?.full_name || ""}>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[#1E3A5F]">Record & Detect</h1>
         <p className="text-sm text-[#64748b] mt-1">Record a speech sample to assess your current dysarthria severity.</p>

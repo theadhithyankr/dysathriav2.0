@@ -4,8 +4,7 @@ import {
   Mic,
   Dumbbell,
   FileText,
-  Users,
-  BarChart2,
+  Sparkles,
   Settings,
   ChevronRight,
 } from "lucide-react"
@@ -16,18 +15,12 @@ const patientNav = [
   { label: "Record & Detect", href: "/patient/record", icon: Mic },
   { label: "Therapy Exercises", href: "/patient/therapy", icon: Dumbbell },
   { label: "My Reports", href: "/patient/report", icon: FileText },
-]
-
-const therapistNav = [
-  { label: "Dashboard", href: "/therapist/dashboard", icon: LayoutDashboard },
-  { label: "Patients", href: "/therapist/patients", icon: Users },
-  { label: "Analytics", href: "/therapist/analytics", icon: BarChart2 },
-  { label: "Reports", href: "/therapist/reports", icon: FileText },
+  { label: "Vibra",            href: "/patient/ai-coach",  icon: Sparkles },
 ]
 
 export default function Sidebar({ role = "patient", collapsed = false }) {
   const location = useLocation()
-  const navItems = role === "therapist" ? therapistNav : patientNav
+  const navItems = patientNav
 
   return (
     <aside
@@ -38,13 +31,10 @@ export default function Sidebar({ role = "patient", collapsed = false }) {
     >
       {/* Branding */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-[#e2e8f0]">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#1E3A5F]">
-          <Mic className="h-4 w-4 text-white" />
-        </div>
+        <img src="/favicon.svg" alt="Dysera" className="h-8 w-8 shrink-0" />
         {!collapsed && (
           <span className="text-sm font-semibold text-[#1E3A5F] leading-tight">
-            Dysarthria<br />
-            <span className="font-normal text-[#64748b]">Platform</span>
+            Dysera
           </span>
         )}
       </div>
@@ -53,7 +43,7 @@ export default function Sidebar({ role = "patient", collapsed = false }) {
       {!collapsed && (
         <div className="px-4 pt-4 pb-1">
           <p className="text-[10px] uppercase tracking-widest font-semibold text-[#64748b]">
-            {role === "therapist" ? "Therapist Portal" : "Patient Portal"}
+            Patient Portal
           </p>
         </div>
       )}

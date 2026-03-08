@@ -1,5 +1,5 @@
 """
-Dysarthria Detector & Therapy Platform — FastAPI backend
+Dysera — AI-powered dysarthria assessment & therapy platform (FastAPI backend)
 Run: uvicorn main:app --reload --port 8000
 """
 
@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from models.database import engine, Base
-from routers import auth, audio, sessions, patients
+from routers import auth, audio, sessions, ai_coach, exercise_plans
 
 # Create all tables on startup (fine for SQLite dev; use Alembic for prod)
 Base.metadata.create_all(bind=engine)
@@ -33,10 +33,11 @@ app.add_middleware(
 
 # ── Routers ────────────────────────────────────────────────────────────────────
 API_PREFIX = "/api"
-app.include_router(auth.router,     prefix=API_PREFIX)
-app.include_router(audio.router,    prefix=API_PREFIX)
-app.include_router(sessions.router, prefix=API_PREFIX)
-app.include_router(patients.router, prefix=API_PREFIX)
+app.include_router(auth.router,           prefix=API_PREFIX)
+app.include_router(audio.router,          prefix=API_PREFIX)
+app.include_router(sessions.router,       prefix=API_PREFIX)
+app.include_router(ai_coach.router,       prefix=API_PREFIX)
+app.include_router(exercise_plans.router, prefix=API_PREFIX)
 
 
 @app.get("/health")

@@ -7,6 +7,10 @@ GET  /api/auth/me
 
 import os
 from datetime import datetime, timedelta
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -95,8 +99,7 @@ async def get_current_user(
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
 def register(body: RegisterRequest, db: DBSession = Depends(get_db)):
-    if body.role not in ("patient", "therapist"):
-        raise HTTPException(400, "role must be 'patient' or 'therapist'")
+    body.role = "patient"  # only patients register via this app
     if db.query(User).filter(User.email == body.email).first():
         raise HTTPException(409, "Email already registered")
 

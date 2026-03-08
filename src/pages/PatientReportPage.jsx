@@ -1,8 +1,7 @@
+import { useState, useEffect, useRef } from "react"
 import AppLayout from "@/components/layout/AppLayout"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
   Table,
@@ -23,57 +22,76 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts"
-import { Download, MessageSquare, TrendingUp, Calendar, Mic } from "lucide-react"
+import { TrendingUp, Calendar, Mic, Loader2, Download, Bot } from "lucide-react"
+import { getToken, API_BASE } from "@/lib/auth"
+import { useUser } from "@/lib/UserContext"
 
-const scoreHistory = [
-  { week: "W1", score: 42 }, { week: "W2", score: 48 }, { week: "W3", score: 51 },
-  { week: "W4", score: 55 }, { week: "W5", score: 60 }, { week: "W6", score: 63 },
-  { week: "W7", score: 69 }, { week: "W8", score: 74 },
-]
+const SEV_COLOR = { Healthy: "mild", Moderate: "moderate", Severe: "severe" }
 
-const exerciseCompletion = [
-  { exercise: "Lip Round", completed: 12, total: 14 },
-  { exercise: "Tongue", completed: 9, total: 14 },
-  { exercise: "Phonation", completed: 14, total: 14 },
-  { exercise: "Breath", completed: 11, total: 14 },
-  { exercise: "Rate", completed: 8, total: 14 },
-]
+function weekKey(dateStr) {
+  const d = new Date(dateStr)
+  const start = new Date(d.getFullYear(), 0, 1)
+  const week = Math.ceil(((d - start) / 86400000 + start.getDay() + 1) / 7)
+  return `${d.getFullYear()}-W${String(week).padStart(2, "0")}`
+}
 
-const sessions = [
-  { date: "2026-03-06", exercise: "Lip Rounding", duration: "12 min", score: 74, severity: "Mild", notes: "Good session" },
-  { date: "2026-03-04", exercise: "Tongue Placement", duration: "15 min", score: 68, severity: "Mild", notes: "" },
-  { date: "2026-03-01", exercise: "Breath Control", duration: "10 min", score: 63, severity: "Moderate", notes: "Slight fatigue noted" },
-  { date: "2026-02-27", exercise: "Vowel Prolongation", duration: "18 min", score: 59, severity: "Moderate", notes: "" },
-  { date: "2026-02-24", exercise: "Consonant Drill", duration: "14 min", score: 55, severity: "Moderate", notes: "" },
-  { date: "2026-02-21", exercise: "Rate Control", duration: "12 min", score: 53, severity: "Moderate", notes: "Pacing improved" },
-  { date: "2026-02-18", exercise: "Jaw Relaxation", duration: "8 min", score: 51, severity: "Moderate", notes: "" },
-  { date: "2026-02-15", exercise: "Lip Rounding", duration: "11 min", score: 48, severity: "Moderate", notes: "" },
-]
-
-const therapistNotes = [
-  {
-    date: "2026-03-06",
-    author: "Dr. Priya Nair",
-    note: "Alex continues to show steady improvement. Lip rounding exercises are producing measurable gains in intelligibility. Score now at 74/100 — approaching Mild–Normal threshold. Will maintain current programme for 2 more weeks before reassessment.",
-  },
-  {
-    date: "2026-02-20",
-    author: "Dr. Priya Nair",
-    note: "Progress slower than expected in articulation rate tasks. Introduced paced-speech metronome technique. Patient responded well. Recommend increasing session frequency to 4x/week.",
-  },
-  {
-    date: "2026-02-01",
-    author: "Dr. Priya Nair",
-    note: "Initial assessment complete. Diagnosed as Moderate dysarthria. Baseline score: 42/100. Programme started focusing on lip closure and breath support.",
-  },
-]
-
-const severityColor = { Mild: "mild", Moderate: "moderate", Severe: "severe" }
+function buildWeeklyData(sessions) {
+  const map = {}
+  sessions.forEach(s => {
+    const k = weekKey(s.created_at)
+    if (!map[k]) map[k] = { scores: [], count: 0 }
+    map[k].scores.push(s.score)
+    map[k].count++
+  })
+  return Object.entries(map)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, v], i) => ({
+      week: `W${i + 1}`,
+      score: Math.round(v.scores.reduce((a, b) => a + b) / v.scores.length),
+      sessions: v.count,
+    }))
+}
 
 export default function PatientReportPage() {
+  const { user }   = useUser()
+  const [sessions, setSessions] = useState([])
+  const [loading, setLoading]   = useState(true)
+  const printRef = useRef(null)
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/sessions?limit=100`, { headers: { Authorization: `Bearer ${getToken()}` } })
+      .then(r => r.json())
+      .then(data => { setSessions(Array.isArray(data) ? data : []); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [])
+
+  function handlePrint() {
+    window.print()
+  }
+
+  const latest     = sessions[0]
+  const earliest   = sessions[sessions.length - 1]
+  const avgScore   = sessions.length
+    ? Math.round(sessions.reduce((a, s) => a + s.score, 0) / sessions.length)
+    : 0
+  const weeklyData = buildWeeklyData(sessions)
+  const firstDate  = earliest
+    ? new Date(earliest.created_at).toLocaleDateString("en-GB", { month: "short", year: "numeric" })
+    : "—"
+
+  // Trend: compare last 5 vs previous 5 sessions
+  const last5 = sessions.slice(0, 5)
+  const prev5 = sessions.slice(5, 10)
+  const last5avg = last5.length ? Math.round(last5.reduce((a, s) => a + s.score, 0) / last5.length) : null
+  const prev5avg = prev5.length ? Math.round(prev5.reduce((a, s) => a + s.score, 0) / prev5.length) : null
+  const trend = last5avg !== null && prev5avg !== null
+    ? last5avg > prev5avg ? "↑ Improving" : last5avg < prev5avg ? "↓ Declining" : "→ Stable"
+    : "—"
+
+  const fullName = user?.full_name || ""
+
   return (
-    <AppLayout role="patient" userName="Alex Johnson">
-      {/* Header */}
+    <AppLayout role="patient" userName={fullName}>
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[#1E3A5F]">My Report</h1>
@@ -81,230 +99,154 @@ export default function PatientReportPage() {
             Comprehensive overview of your assessment history and progress.
           </p>
         </div>
-        <Button variant="outline" size="sm">
-          <Download className="mr-2 h-4 w-4" />
-          Export PDF
-        </Button>
+        {!loading && sessions.length > 0 && (
+          <button
+            onClick={handlePrint}
+            className="flex items-center gap-1.5 text-sm text-[#2A9D8F] border border-[#2A9D8F]/40 rounded-md px-3 py-1.5 hover:bg-[#f0faf9] transition-colors print:hidden"
+          >
+            <Download className="h-4 w-4" />
+            Download / Print
+          </button>
+        )}
       </div>
 
-      {/* Patient summary strip */}
-      <Card className="mb-6">
-        <CardContent className="pt-5 pb-5">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-            {[
-              { icon: Mic, label: "Current Severity", value: "Mild", sub: "Improved from Moderate" },
-              { icon: TrendingUp, label: "Latest Score", value: "74/100", sub: "+32 from baseline" },
-              { icon: Calendar, label: "Total Sessions", value: "48", sub: "Since Feb 2026" },
-              { icon: MessageSquare, label: "Therapist", value: "Dr. Priya Nair", sub: "Last note: Mar 6" },
-            ].map(({ icon: Icon, label, value, sub }) => (
-              <div key={label} className="flex gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#F1F5F9]">
-                  <Icon className="h-4 w-4 text-[#2A9D8F]" />
-                </div>
-                <div>
-                  <p className="text-xs text-[#64748b] mb-0.5">{label}</p>
-                  <p className="font-semibold text-[#1E3A5F] text-sm">{value}</p>
-                  <p className="text-xs text-[#94a3b8]">{sub}</p>
-                </div>
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-[#1E3A5F]" />
+        </div>
+      ) : sessions.length === 0 ? (
+        <Card>
+          <CardContent className="py-16 text-center text-[#94a3b8]">
+            No sessions recorded yet.{" "}
+            <a href="/patient/record" className="text-[#2A9D8F] underline">
+              Record & Detect →
+            </a>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Summary strip */}
+          <Card className="mb-6">
+            <CardContent className="pt-5 pb-5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+                {[
+                  { icon: Mic,        label: "Current Severity", value: latest?.severity || "—",                        sub: "Most recent result" },
+                  { icon: TrendingUp, label: "Latest Score",     value: latest ? `${Math.round(latest.score)}/100` : "—", sub: `Avg: ${avgScore}/100` },
+                  { icon: Calendar,   label: "Total Sessions",   value: String(sessions.length),                         sub: `Since ${firstDate}` },
+                  { icon: Bot,        label: "AI Therapist",    value: "Vibra",                                         sub: "Powered by Groq LLaMA" },
+                ].map(({ icon: Icon, label, value, sub }) => (
+                  <div key={label} className="flex gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#F1F5F9]">
+                      <Icon className="h-4 w-4 text-[#2A9D8F]" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-[#64748b] mb-0.5">{label}</p>
+                      <p className="font-semibold text-[#1E3A5F] text-sm">{value}</p>
+                      <p className="text-xs text-[#94a3b8]">{sub}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Tabs */}
-      <Tabs defaultValue="overview">
-        <TabsList className="mb-4">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="sessions">Sessions</TabsTrigger>
-          <TabsTrigger value="charts">Progress Charts</TabsTrigger>
-          <TabsTrigger value="notes">Therapist Notes</TabsTrigger>
-        </TabsList>
-
-        {/* Overview tab */}
-        <TabsContent value="overview">
-          <div className="grid sm:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Severity Progression</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {[
-                  { period: "Feb 2026 (Baseline)", severity: "Moderate", score: 42 },
-                  { period: "Feb–Mar 2026", severity: "Moderate", score: 55 },
-                  { period: "Mar 2026 (Current)", severity: "Mild", score: 74 },
-                ].map(({ period, severity, score }) => (
-                  <div key={period} className="flex items-center gap-3">
-                    <div className="w-28 shrink-0 text-xs text-[#64748b]">{period}</div>
-                    <Progress value={score} className="flex-1" />
-                    <Badge variant={severityColor[severity]} className="shrink-0 w-20 justify-center">
-                      {severity}
-                    </Badge>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Acoustic Feature Scores</CardTitle>
-                <CardDescription>Latest assessment</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {[
-                  { feature: "Pitch Regularity", score: 68 },
-                  { feature: "Articulation Rate", score: 52 },
-                  { feature: "Voice Quality (HNR)", score: 81 },
-                  { feature: "Pause Pattern", score: 45 },
-                  { feature: "Intelligibility (Overall)", score: 74 },
-                ].map(({ feature, score }) => (
-                  <div key={feature}>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-xs text-[#64748b]">{feature}</span>
-                      <span className="text-xs font-medium">{score}/100</span>
-                    </div>
-                    <Progress value={score} className="h-1.5" />
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            <Card className="sm:col-span-2">
-              <CardHeader>
-                <CardTitle className="text-base">Exercise Completion Rate</CardTitle>
-                <CardDescription>Last 2 weeks across exercise types</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {exerciseCompletion.map(({ exercise, completed, total }) => (
-                    <div key={exercise} className="flex items-center gap-3">
-                      <span className="w-28 text-xs text-[#64748b] shrink-0">{exercise}</span>
-                      <Progress value={(completed / total) * 100} className="flex-1" />
-                      <span className="text-xs font-medium text-[#334155] w-12 text-right">
-                        {completed}/{total}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Sessions tab */}
-        <TabsContent value="sessions">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Session History</CardTitle>
-              <CardDescription>{sessions.length} sessions recorded</CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Exercise</TableHead>
-                    <TableHead>Duration</TableHead>
-                    <TableHead>Score</TableHead>
-                    <TableHead>Severity</TableHead>
-                    <TableHead>Notes</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sessions.map((s, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="text-sm">{s.date}</TableCell>
-                      <TableCell className="text-sm font-medium">{s.exercise}</TableCell>
-                      <TableCell className="text-sm text-[#64748b]">{s.duration}</TableCell>
-                      <TableCell>
-                        <span className="font-semibold text-[#1E3A5F]">{s.score}</span>
-                        <span className="text-xs text-[#94a3b8]">/100</span>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={severityColor[s.severity]}>{s.severity}</Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-[#64748b]">{s.notes || "—"}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
             </CardContent>
           </Card>
-        </TabsContent>
 
-        {/* Charts tab */}
-        <TabsContent value="charts">
-          <div className="grid sm:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Speech Score Over Time</CardTitle>
-                <CardDescription>8-week trend</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={scoreHistory} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="week" tick={{ fontSize: 11, fill: "#94a3b8" }} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "#94a3b8" }} />
-                    <Tooltip contentStyle={{ border: "1px solid #e2e8f0", borderRadius: "6px", fontSize: 12 }} />
-                    <Line
-                      type="monotone"
-                      dataKey="score"
-                      stroke="#2A9D8F"
-                      strokeWidth={2}
-                      dot={{ r: 3, fill: "#2A9D8F" }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+          <Tabs defaultValue="sessions">
+            <TabsList className="mb-4">
+              <TabsTrigger value="sessions">Sessions</TabsTrigger>
+              <TabsTrigger value="charts">Progress Charts</TabsTrigger>
+            </TabsList>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Exercise Completion per Week</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart
-                    data={[
-                      { week: "W1", sessions: 3 }, { week: "W2", sessions: 4 },
-                      { week: "W3", sessions: 3 }, { week: "W4", sessions: 5 },
-                      { week: "W5", sessions: 4 }, { week: "W6", sessions: 5 },
-                      { week: "W7", sessions: 5 }, { week: "W8", sessions: 6 },
-                    ]}
-                    margin={{ top: 4, right: 8, bottom: 0, left: -20 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="week" tick={{ fontSize: 11, fill: "#94a3b8" }} />
-                    <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} />
-                    <Tooltip contentStyle={{ border: "1px solid #e2e8f0", borderRadius: "6px", fontSize: 12 }} />
-                    <Bar dataKey="sessions" fill="#1E3A5F" radius={[3, 3, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Therapist Notes tab */}
-        <TabsContent value="notes">
-          <div className="space-y-4">
-            {therapistNotes.map((n, i) => (
-              <Card key={i}>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm">{n.author}</CardTitle>
-                    <span className="text-xs text-[#94a3b8]">{n.date}</span>
-                  </div>
+            {/* Sessions tab */}
+            <TabsContent value="sessions">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Session History</CardTitle>
+                  <CardDescription>{sessions.length} sessions recorded</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-[#334155] leading-relaxed">{n.note}</p>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date & Time</TableHead>
+                        <TableHead>Score</TableHead>
+                        <TableHead>Severity</TableHead>
+                        <TableHead>Confidence</TableHead>
+                        <TableHead>Duration</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sessions.map(s => (
+                        <TableRow key={s.id}>
+                          <TableCell className="text-sm">
+                            {new Date(s.created_at).toLocaleString("en-GB", {
+                              day: "2-digit", month: "short", year: "numeric",
+                              hour: "2-digit", minute: "2-digit",
+                            })}
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-semibold text-[#1E3A5F]">{Math.round(s.score)}</span>
+                            <span className="text-xs text-[#94a3b8]">/100</span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={SEV_COLOR[s.severity] || "outline"}>{s.severity}</Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-[#64748b]">
+                            {s.confidence != null ? `${Math.round(s.confidence * 100)}%` : "—"}
+                          </TableCell>
+                          <TableCell className="text-sm text-[#64748b]">
+                            {s.audio_duration ? `${Math.round(s.audio_duration)}s` : "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        </TabsContent>
-      </Tabs>
+            </TabsContent>
+
+            {/* Charts tab */}
+            <TabsContent value="charts">
+              <div className="grid sm:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Speech Score Over Time</CardTitle>
+                    <CardDescription>Weekly average</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <LineChart data={weeklyData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="week" tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                        <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                        <Tooltip contentStyle={{ border: "1px solid #e2e8f0", borderRadius: "6px", fontSize: 12 }} />
+                        <Line type="monotone" dataKey="score" stroke="#2A9D8F" strokeWidth={2} dot={{ r: 3, fill: "#2A9D8F" }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Sessions per Week</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={weeklyData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="week" tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                        <Tooltip contentStyle={{ border: "1px solid #e2e8f0", borderRadius: "6px", fontSize: 12 }} />
+                        <Bar dataKey="sessions" fill="#1E3A5F" radius={[3, 3, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </>
+      )}
     </AppLayout>
   )
 }
+

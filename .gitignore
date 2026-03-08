@@ -1,1 +1,53 @@
-node_modules
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+dist-ssr/
+
+# Environment files — never commit secrets
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Databases (local dev only — use DATABASE_URL env var in production)
+*.db
+*.sqlite
+*.sqlite3
+
+# Training data — large raw audio/CSV files excluded from git
+backend/data/torgo/
+archive/
+torgo_features.csv
+backend/data/torgo_features.csv
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
