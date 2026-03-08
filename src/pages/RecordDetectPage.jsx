@@ -68,28 +68,82 @@ const SEVERITY_CONFIG = {
   },
 }
 
-// Fake waveform bars
-function Waveform({ active }) {
-  const bars = Array.from({ length: 40 })
+// Real-time microphone waveform driven by Web Audio API AnalyserNode
+function Waveform({ active, stream }) {
+  const canvasRef = useRef(null)
+  const rafRef    = useRef(null)
+  const analyserRef = useRef(null)
+  const audioCtxRef = useRef(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext("2d")
+
+    if (!active || !stream) {
+      // Draw flat idle line
+      cancelAnimationFrame(rafRef.current)
+      if (audioCtxRef.current) { audioCtxRef.current.close(); audioCtxRef.current = null }
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.strokeStyle = "#cbd5e1"
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo(0, canvas.height / 2)
+      ctx.lineTo(canvas.width, canvas.height / 2)
+      ctx.stroke()
+      return
+    }
+
+    const audioCtx = new AudioContext()
+    audioCtxRef.current = audioCtx
+    const source   = audioCtx.createMediaStreamSource(stream)
+    const analyser = audioCtx.createAnalyser()
+    analyser.fftSize = 1024
+    source.connect(analyser)
+    analyserRef.current = analyser
+    const dataArray = new Uint8Array(analyser.fftSize)
+
+    function draw() {
+      rafRef.current = requestAnimationFrame(draw)
+      analyser.getByteTimeDomainData(dataArray)
+
+      const W = canvas.width
+      const H = canvas.height
+      ctx.clearRect(0, 0, W, H)
+
+      ctx.lineWidth = 2
+      ctx.strokeStyle = "#2A9D8F"
+      ctx.shadowColor = "#2A9D8F"
+      ctx.shadowBlur = 6
+      ctx.beginPath()
+
+      const sliceWidth = W / dataArray.length
+      let x = 0
+      for (let i = 0; i < dataArray.length; i++) {
+        const v = dataArray[i] / 128.0
+        const y = (v * H) / 2
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+        x += sliceWidth
+      }
+      ctx.lineTo(W, H / 2)
+      ctx.stroke()
+      ctx.shadowBlur = 0
+    }
+    draw()
+
+    return () => {
+      cancelAnimationFrame(rafRef.current)
+      audioCtx.close()
+    }
+  }, [active, stream])
+
   return (
-    <div className="flex items-center justify-center gap-[2px] h-16">
-      {bars.map((_, i) => {
-        const baseHeight = 8
-        const maxExtra = active ? 40 : 4
-        const height = baseHeight + Math.sin(i * 0.5) * maxExtra * (active ? 1 : 0.2)
-        return (
-          <div
-            key={i}
-            className="w-1 rounded-full transition-all duration-150"
-            style={{
-              height: `${Math.max(4, height)}px`,
-              backgroundColor: active ? "#2A9D8F" : "#cbd5e1",
-              opacity: active ? 0.7 + Math.sin(i) * 0.3 : 0.4,
-            }}
-          />
-        )
-      })}
-    </div>
+    <canvas
+      ref={canvasRef}
+      width={560}
+      height={64}
+      className="w-full h-16 rounded"
+    />
   )
 }
 
@@ -108,6 +162,7 @@ export default function RecordDetectPage() {
   const audioBlobRef = useRef(null)
   const fileInputRef = useRef(null)
   const resultRef = useRef(null)
+  const [liveStream, setLiveStream] = useState(null)
 
   useEffect(() => {
     if (recording) {
@@ -130,10 +185,12 @@ export default function RecordDetectPage() {
       audioBlobRef.current = null
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        setLiveStream(stream)
         const mr = new MediaRecorder(stream)
         mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
         mr.onstop = async () => {
           stream.getTracks().forEach((t) => t.stop())
+          setLiveStream(null)
           try {
             const raw = new Blob(chunksRef.current, { type: "audio/webm" })
             audioBlobRef.current = await toWavBlob(raw)
@@ -159,6 +216,7 @@ export default function RecordDetectPage() {
     setResult(null)
     setError(null)
     setElapsed(0)
+    setLiveStream(null)
     audioBlobRef.current = null
     chunksRef.current = []
   }
@@ -256,7 +314,7 @@ export default function RecordDetectPage() {
 
             {/* Waveform */}
             <div className="rounded-md border border-[#e2e8f0] bg-white px-4 py-4">
-              <Waveform active={recording} />
+              <Waveform active={recording} stream={liveStream} />
               <div className="mt-2 flex items-center justify-between">
                 <span className="text-xs text-[#94a3b8]">
                   {recording ? "Recording…" : recorded ? "Recording complete" : "Waiting to record"}

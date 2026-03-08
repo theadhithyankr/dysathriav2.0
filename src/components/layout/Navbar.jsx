@@ -25,14 +25,6 @@ export default function Navbar({ role = "patient", userName }) {
 
   return (
     <header className="sticky top-0 z-40 flex h-14 items-center border-b border-[#cbd5e1] bg-white px-4 gap-4">
-      {/* Logo */}
-      <div className="flex items-center gap-2 mr-4">
-        <img src="/favicon.svg" alt="Dysera" className="h-7 w-7" />
-        <span className="hidden sm:block font-semibold text-[#1E3A5F] text-sm">
-          Dysera
-        </span>
-      </div>
-
       <div className="flex-1" />
 
       {/* Role badge */}

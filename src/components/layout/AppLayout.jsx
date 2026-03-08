@@ -12,7 +12,7 @@ export default function AppLayout({ children, role = "patient", userName = "Alex
     <div className="flex min-h-screen bg-[#F1F5F9]">
       {/* Desktop sidebar */}
       <div className="hidden md:flex">
-        <Sidebar role={role} collapsed={!sidebarOpen} />
+        <Sidebar role={role} collapsed={!sidebarOpen} onToggle={() => setSidebarOpen(v => !v)} />
       </div>
 
       {/* Mobile sidebar overlay */}

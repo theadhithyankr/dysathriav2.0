@@ -133,7 +133,7 @@ export default function PatientReportPage() {
                   { icon: Mic,        label: "Current Severity", value: latest?.severity || "—",                        sub: "Most recent result" },
                   { icon: TrendingUp, label: "Latest Score",     value: latest ? `${Math.round(latest.score)}/100` : "—", sub: `Avg: ${avgScore}/100` },
                   { icon: Calendar,   label: "Total Sessions",   value: String(sessions.length),                         sub: `Since ${firstDate}` },
-                  { icon: Bot,        label: "AI Therapist",    value: "Vibra",                                         sub: "Powered by Groq LLaMA" },
+                  { icon: Bot,        label: "AI Therapist",    value: "Vibra",                                         sub: "Your speech coach" },
                 ].map(({ icon: Icon, label, value, sub }) => (
                   <div key={label} className="flex gap-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#F1F5F9]">

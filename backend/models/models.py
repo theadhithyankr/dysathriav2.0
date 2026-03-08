@@ -73,3 +73,14 @@ class ExercisePlan(Base):
     completed      = Column(Boolean, default=False, nullable=False)
     completed_at   = Column(DateTime, nullable=True)
     created_at     = Column(DateTime, default=datetime.datetime.utcnow)
+
+
+class ChatMessage(Base):
+    """Persisted chat messages between a patient and Vibra."""
+    __tablename__ = "chat_messages"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    role       = Column(String(20), nullable=False)   # "user" | "assistant"
+    content    = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)

@@ -3,7 +3,7 @@ import AppLayout from "@/components/layout/AppLayout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Send, Bot, User, Sparkles, Activity, Loader2, Mic } from "lucide-react"
+import { Send, Bot, User, Sparkles, Activity, Loader2, Mic, CheckCircle2 } from "lucide-react"
 import { getToken, API_BASE } from "@/lib/auth"
 import { useUser } from "@/lib/UserContext"
 
@@ -66,13 +66,29 @@ export default function AiCoachPage() {
   const [loading, setLoading] = useState(false)
   const bottomRef             = useRef(null)
 
-  // Set welcome message once session severity is loaded
+  // Load chat history once session severity is loaded
   useEffect(() => {
     if (!sessionLoading) {
-      setMessages([{
-        role: "assistant",
-        text: `Hi! I'm Vibra, your AI speech coach. ${WELCOME[severity]} Feel free to ask me anything about your exercises or condition.`,
-      }])
+      fetch(`${API_BASE}/api/ai-coach/chat/history`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (Array.isArray(data) && data.length > 0) {
+            setMessages(data.map(m => ({ role: m.role, text: m.content })))
+          } else {
+            setMessages([{
+              role: "assistant",
+              text: `Hi! I'm Vibra, your AI speech coach. ${WELCOME[severity]} Feel free to ask me anything about your exercises or condition.`,
+            }])
+          }
+        })
+        .catch(() => {
+          setMessages([{
+            role: "assistant",
+            text: `Hi! I'm Vibra, your AI speech coach. ${WELCOME[severity]} Feel free to ask me anything about your exercises or condition.`,
+          }])
+        })
     }
   }, [sessionLoading, severity])
   useEffect(() => {
@@ -88,14 +104,31 @@ export default function AiCoachPage() {
     setInput("")
     setLoading(true)
 
+    // Build history for context (last 20 messages before this one)
+    const historyToSend = messages
+      .slice(-20)
+      .map(m => ({ role: m.role, content: m.text }))
+
     try {
       const res = await fetch(`${API_BASE}/api/ai-coach/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, severity, score: score ?? 50 }),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          message: text,
+          severity,
+          score: score ?? 50,
+          history: historyToSend,
+        }),
       })
       const data = await res.json()
-      setMessages(prev => [...prev, { role: "assistant", text: data.reply || data.detail || "Sorry, I couldn't get a response." }])
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        text: data.reply || data.detail || "Sorry, I couldn't get a response.",
+        added_exercise: data.added_exercise || null,
+      }])
     } catch {
       setMessages(prev => [...prev, { role: "assistant", text: "Connection error. Please make sure the backend is running." }])
     } finally {
@@ -196,14 +229,22 @@ export default function AiCoachPage() {
                     <Bot className="h-3.5 w-3.5 text-white" />
                   </div>
                 )}
-                <div
-                  className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-                    msg.role === "user"
-                      ? "bg-[#1E3A5F] text-white rounded-tr-sm"
-                      : "bg-[#F1F5F9] text-[#1E3A5F] rounded-tl-sm"
-                  }`}
-                >
-                  {msg.text}
+                <div className="flex flex-col gap-1.5 max-w-[80%]">
+                  <div
+                    className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                      msg.role === "user"
+                        ? "bg-[#1E3A5F] text-white rounded-tr-sm"
+                        : "bg-[#F1F5F9] text-[#1E3A5F] rounded-tl-sm"
+                    }`}
+                  >
+                    {msg.text}
+                  </div>
+                  {msg.added_exercise && (
+                    <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                      <span><strong>{msg.added_exercise.title}</strong> added to today's training</span>
+                    </div>
+                  )}
                 </div>
                 {msg.role === "user" && (
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#e2e8f0]">
