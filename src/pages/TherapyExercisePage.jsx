@@ -23,6 +23,7 @@ import {
 } from "lucide-react"
 import { getToken, API_BASE } from "@/lib/auth"
 import { useUser } from "@/lib/UserContext"
+import MouthViseme from "@/components/ui/MouthViseme"
 
 // ── Convert any audio blob to 16 kHz mono WAV ────────────────────────────────
 async function toWavBlob(blob) {
@@ -70,23 +71,65 @@ const SEV_BADGE = {
   Severe:   "bg-red-100     text-red-700     border-red-200",
 }
 
+// ── Map a word's first character to a viseme shape ───────────────────────────
+function charToViseme(char) {
+  const c = (char || "").toLowerCase()
+  if (c === "a")          return "A"
+  if (c === "e")          return "E"
+  if ("iy".includes(c))  return "I"
+  if (c === "o")          return "O"
+  if ("uw".includes(c))  return "U"
+  if ("mbp".includes(c)) return "M"
+  if ("fv".includes(c))  return "F"
+  if (/[a-z]/.test(c))   return "I"  // any other consonant — open talking
+  return "rest"
+}
+
 // ── TTS hook ─────────────────────────────────────────────────────────────────
-function useTTS() {
+function useTTS(onViseme) {
   const [speaking, setSpeaking] = useState(false)
+  const timerRef = useRef(null)
+
+  // Idle cycle keeps mouth animating between word-boundary events
+  const CYCLE = ["I", "A", "I", "E", "I", "M", "I", "O", "I", "U"]
 
   function speak(text) {
     window.speechSynthesis.cancel()
+    clearInterval(timerRef.current)
     const utter = new SpeechSynthesisUtterance(text)
     utter.rate = 0.92
-    utter.onstart = () => setSpeaking(true)
-    utter.onend   = () => setSpeaking(false)
-    utter.onerror = () => setSpeaking(false)
+
+    // Word-boundary events → accurate first-char viseme
+    utter.addEventListener("boundary", e => {
+      if (e.name !== "word") return
+      const word = text.slice(e.charIndex, e.charIndex + (e.charLength ?? 6))
+      onViseme?.(charToViseme(word[0] ?? ""))
+    })
+
+    let ci = 0
+    utter.onstart = () => {
+      setSpeaking(true)
+      timerRef.current = setInterval(() => {
+        onViseme?.(CYCLE[ci++ % CYCLE.length])
+      }, 145)
+    }
+
+    const cleanup = () => {
+      clearInterval(timerRef.current)
+      setSpeaking(false)
+      onViseme?.("rest")
+    }
+    utter.onend   = cleanup
+    utter.onerror = cleanup
+
     window.speechSynthesis.speak(utter)
   }
 
   function stop() {
     window.speechSynthesis.cancel()
+    clearInterval(timerRef.current)
     setSpeaking(false)
+    onViseme?.("rest")
   }
 
   return { speaking, speak, stop }
@@ -173,7 +216,8 @@ export default function TherapyExercisePage() {
   const initiallyCompletedRef = useRef(false) // was today already done on load
 
   const recorder = useMiniRecorder(token)
-  const tts       = useTTS()
+  const [viseme, setViseme] = useState("rest")
+  const tts       = useTTS(setViseme)
 
   useEffect(() => { loadTodayPlan() }, [])
   useEffect(() => { recorder.reset(); tts.stop() }, [current])
@@ -504,9 +548,12 @@ export default function TherapyExercisePage() {
                 </CardHeader>
 
                 <CardContent className="space-y-5">
-                  {/* Instruction */}
-                  <div className="rounded-md border border-[#e2e8f0] bg-[#F1F5F9] p-4">
-                    <p className="text-sm text-[#334155] leading-relaxed">{exercise.instruction}</p>
+                  {/* Mouth viseme + instruction side by side */}
+                  <div className="flex flex-col sm:flex-row gap-4 items-center sm:items-start">
+                    <MouthViseme viseme={tts.speaking ? viseme : "rest"} speaking={tts.speaking} />
+                    <div className="rounded-md border border-[#e2e8f0] bg-[#F1F5F9] p-4 flex-1 w-full">
+                      <p className="text-sm text-[#334155] leading-relaxed">{exercise.instruction}</p>
+                    </div>
                   </div>
 
                   {/* Prompt */}
