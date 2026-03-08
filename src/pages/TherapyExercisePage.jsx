@@ -20,10 +20,12 @@ import {
   Trophy,
   Volume2,
   VolumeX,
+  PlayCircle,
 } from "lucide-react"
 import { getToken, API_BASE } from "@/lib/auth"
 import { useUser } from "@/lib/UserContext"
 import MouthViseme from "@/components/ui/MouthViseme"
+import TalkingHeadAvatar from "@/components/ui/TalkingHeadAvatar"
 
 // ── Convert any audio blob to 16 kHz mono WAV ────────────────────────────────
 async function toWavBlob(blob) {
@@ -71,6 +73,21 @@ const SEV_BADGE = {
   Severe:   "bg-red-100     text-red-700     border-red-200",
 }
 
+// ── Live word-highlighting component ─────────────────────────────────────────
+function HighlightedText({ text, activeWord }) {
+  if (!activeWord) return <span>{text}</span>
+  return (
+    <span>
+      {text.split(/(\s+)/).map((token, i) => {
+        const clean = token.toLowerCase().replace(/[^a-z']/g, "")
+        return clean && clean === activeWord
+          ? <mark key={i} className="bg-[#2A9D8F]/20 text-[#1E3A5F] rounded px-0.5 not-italic">{token}</mark>
+          : <span key={i}>{token}</span>
+      })}
+    </span>
+  )
+}
+
 // ── Map a word's first character to a viseme shape ───────────────────────────
 function charToViseme(char) {
   const c = (char || "").toLowerCase()
@@ -86,7 +103,7 @@ function charToViseme(char) {
 }
 
 // ── TTS hook ─────────────────────────────────────────────────────────────────
-function useTTS(onViseme) {
+function useTTS(onViseme, onWord) {
   const [speaking, setSpeaking] = useState(false)
   const timerRef = useRef(null)
 
@@ -99,11 +116,12 @@ function useTTS(onViseme) {
     const utter = new SpeechSynthesisUtterance(text)
     utter.rate = 0.92
 
-    // Word-boundary events → accurate first-char viseme
+    // Word-boundary events → accurate first-char viseme + word highlight
     utter.addEventListener("boundary", e => {
       if (e.name !== "word") return
       const word = text.slice(e.charIndex, e.charIndex + (e.charLength ?? 6))
       onViseme?.(charToViseme(word[0] ?? ""))
+      onWord?.(word.toLowerCase().replace(/[^a-z']/g, ""))
     })
 
     let ci = 0
@@ -118,6 +136,7 @@ function useTTS(onViseme) {
       clearInterval(timerRef.current)
       setSpeaking(false)
       onViseme?.("rest")
+      onWord?.("")
     }
     utter.onend   = cleanup
     utter.onerror = cleanup
@@ -130,6 +149,7 @@ function useTTS(onViseme) {
     clearInterval(timerRef.current)
     setSpeaking(false)
     onViseme?.("rest")
+    onWord?.("")
   }
 
   return { speaking, speak, stop }
@@ -216,11 +236,20 @@ export default function TherapyExercisePage() {
   const initiallyCompletedRef = useRef(false) // was today already done on load
 
   const recorder = useMiniRecorder(token)
-  const [viseme, setViseme] = useState("rest")
-  const tts       = useTTS(setViseme)
+  const avatarRef = useRef(null)
+  const [viseme, setViseme]       = useState("rest")
+  const [speaking, setSpeaking]   = useState(false)
+  const [activeWord, setActiveWord] = useState("")
+  const tts = useTTS(setViseme, setActiveWord)  // fallback TTS + word highlight
 
   useEffect(() => { loadTodayPlan() }, [])
-  useEffect(() => { recorder.reset(); tts.stop() }, [current])
+  useEffect(() => {
+    recorder.reset()
+    // Stop both avatar and fallback TTS when navigating exercises
+    avatarRef.current?.stop()
+    tts.stop()
+    setActiveWord("")
+  }, [current])
 
   async function loadTodayPlan() {
     setLoadingPlan(true)
@@ -528,31 +557,51 @@ export default function TherapyExercisePage() {
                       {isCompleted && <Badge variant="mild">Done</Badge>}
                       <button
                         onClick={() => {
-                          if (tts.speaking) {
+                          const isSpeaking = speaking || tts.speaking
+                          if (isSpeaking) {
+                            avatarRef.current?.stop()
                             tts.stop()
+                            setSpeaking(false)
+                            setActiveWord("")
                           } else {
                             const parts = [exercise.title, exercise.instruction]
                             if (exercise.prompt) parts.push("Practice prompt: " + exercise.prompt)
-                            tts.speak(parts.join(". "))
+                            const text = parts.join(". ")
+                            if (avatarRef.current) {
+                              avatarRef.current.speak(text, setActiveWord)
+                            } else {
+                              tts.speak(text)
+                            }
                           }
                         }}
-                        title={tts.speaking ? "Stop reading" : "Read aloud"}
-                        className="rounded-full p-1.5 hover:bg-[#F1F5F9] text-[#64748b] hover:text-[#2A9D8F] transition-colors"
+                        title={(speaking || tts.speaking) ? "Stop" : "Read aloud"}
+                        className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                          (speaking || tts.speaking)
+                            ? "bg-red-50 text-red-500 hover:bg-red-100 border border-red-200"
+                            : "bg-[#2A9D8F]/10 text-[#2A9D8F] hover:bg-[#2A9D8F]/20 border border-[#2A9D8F]/30"
+                        }`}
                       >
-                        {tts.speaking
-                          ? <VolumeX className="h-4 w-4 text-[#2A9D8F]" />
-                          : <Volume2 className="h-4 w-4" />}
+                        {(speaking || tts.speaking)
+                          ? <><StopCircle className="h-3.5 w-3.5" /> Stop</>
+                          : <><PlayCircle className="h-3.5 w-3.5" /> Read aloud</>}
                       </button>
                     </div>
                   </div>
                 </CardHeader>
 
                 <CardContent className="space-y-5">
-                  {/* Mouth viseme + instruction side by side */}
+                  {/* 3-D Talking avatar — lazy-loads from CDN on first render */}
+                  <TalkingHeadAvatar
+                    ref={avatarRef}
+                    onSpeakingChange={setSpeaking}
+                    className="w-full h-52"
+                  />
+
+                  {/* Instruction + fallback viseme (shown while avatar loads / on error) */}
                   <div className="flex flex-col sm:flex-row gap-4 items-center sm:items-start">
                     <MouthViseme viseme={tts.speaking ? viseme : "rest"} speaking={tts.speaking} />
                     <div className="rounded-md border border-[#e2e8f0] bg-[#F1F5F9] p-4 flex-1 w-full">
-                      <p className="text-sm text-[#334155] leading-relaxed">{exercise.instruction}</p>
+                      <p className="text-sm text-[#334155] leading-relaxed"><HighlightedText text={exercise.instruction} activeWord={activeWord} /></p>
                     </div>
                   </div>
 

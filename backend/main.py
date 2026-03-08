@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from models.database import engine, Base
-from routers import auth, audio, sessions, ai_coach, exercise_plans
+from routers import auth, audio, sessions, ai_coach, exercise_plans, tts
 
 # Create all tables on startup (fine for SQLite dev; use Alembic for prod)
 Base.metadata.create_all(bind=engine)
@@ -38,6 +38,7 @@ app.include_router(audio.router,          prefix=API_PREFIX)
 app.include_router(sessions.router,       prefix=API_PREFIX)
 app.include_router(ai_coach.router,       prefix=API_PREFIX)
 app.include_router(exercise_plans.router, prefix=API_PREFIX)
+app.include_router(tts.router,            prefix=API_PREFIX)
 
 
 @app.get("/health")
