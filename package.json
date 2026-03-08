@@ -4,7 +4,7 @@
     "description":  "",
     "scripts":  {
                     "test":  "echo \"Error: no test specified\" \u0026\u0026 exit 1",
-                    "dev":  "vite",
+                    "dev":  "vite --host",
                     "build":  "vite build",
                     "preview":  "vite preview"
                 },
