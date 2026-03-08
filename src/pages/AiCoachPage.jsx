@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react"
+import { Link } from "react-router-dom"
 import AppLayout from "@/components/layout/AppLayout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -202,12 +203,12 @@ export default function AiCoachPage() {
             ))
           )}
           {exercises.length > 0 && (
-            <a
-              href="/patient/exercises"
+            <Link
+              to="/patient/therapy"
               className="block text-center text-xs text-[#2A9D8F] hover:underline pt-1"
             >
               Open full exercise session →
-            </a>
+            </Link>
           )}
         </div>
 

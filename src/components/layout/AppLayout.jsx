@@ -1,6 +1,7 @@
 import { useState } from "react"
 import Navbar from "./Navbar"
 import Sidebar from "./Sidebar"
+import FloatingChat from "./FloatingChat"
 import { Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -47,6 +48,7 @@ export default function AppLayout({ children, role = "patient", userName = "Alex
           </div>
         </main>
       </div>
+      <FloatingChat />
     </div>
   )
 }
