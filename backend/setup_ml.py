@@ -1,6 +1,10 @@
 """
-Download the TORGO dataset from Kaggle, then run feature extraction and model training.
+Set up the ML pipeline: wav2vec2-base encoder + LogisticRegression head.
 Run this once: python setup_ml.py
+
+The wav2vec2 backbone (~360 MB) is downloaded automatically from HuggingFace
+on first use and cached in ~/.cache/huggingface/.
+No Kaggle account or API key required — uses the archive/ wav files directly.
 """
 
 import os
@@ -8,48 +12,35 @@ import sys
 import subprocess
 from pathlib import Path
 
-ROOT = Path(__file__).parent if "__file__" in dir() else Path.cwd()
-DATA_DIR = ROOT / "data" / "torgo"
-MODELS_DIR = ROOT / "ml_models"
-FEATURES_CSV = ROOT / "data" / "torgo_features.csv"
+ROOT        = Path(__file__).parent if "__file__" in dir() else Path.cwd()
+ARCHIVE_DIR = ROOT.parent / "archive"
+MODELS_DIR  = ROOT / "ml_models"
+HEAD_PATH   = MODELS_DIR / "dysarthria_head.npz"
+
 
 def step(msg: str):
     print(f"\n{'='*60}\n  {msg}\n{'='*60}")
 
 def run(cmd: list[str]):
-    result = subprocess.run(cmd, check=True, shell=(os.name == "nt"))
-    return result
+    subprocess.run(cmd, check=True, shell=(os.name == "nt"))
 
-# ── 1. Download dataset ───────────────────────────────────────────────────────
-step("Step 1/3 — Downloading TORGO dataset from Kaggle (~1.75 GB)")
-DATA_DIR.parent.mkdir(parents=True, exist_ok=True)
-MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
-if DATA_DIR.exists() and any(DATA_DIR.iterdir()):
-    print("  Dataset already present, skipping download.")
-else:
-    run([
-        "kaggle",
-        "datasets", "download",
-        "-d", "pranaykoppula/torgo-audio",
-        "--unzip",
-        "-p", str(DATA_DIR),
-    ])
-    print("  Download complete.")
+# ── 1. Check dataset ──────────────────────────────────────────────────────────
+step("Step 1/2 — Checking archive/ directory")
+wav_files = list(ARCHIVE_DIR.rglob("*.wav"))
+if not wav_files:
+    print("  ERROR: No .wav files found in archive/.")
+    print("  Please ensure the TORGO dataset is present under archive/.")
+    sys.exit(1)
+print(f"  Found {len(wav_files)} wav files in archive/")
 
-# ── 2. Feature extraction ─────────────────────────────────────────────────────
-step("Step 2/3 — Extracting audio features (MFCC + pitch + spectral)")
-if FEATURES_CSV.exists():
-    print("  Features CSV already exists, skipping extraction.")
-else:
-    run([sys.executable, str(ROOT / "prepare_data.py")])
-
-# ── 3. Train model ────────────────────────────────────────────────────────────
-step("Step 3/3 — Training SVM classifier")
-model_path = MODELS_DIR / "dysarthria_clf.pkl"
-if model_path.exists():
+# ── 2. Train model ────────────────────────────────────────────────────────────
+step("Step 2/2 — Training wav2vec2-base + LogReg classifier")
+if HEAD_PATH.exists():
     print("  Model already trained, skipping.")
+    print("  Delete ml_models/dysarthria_head.npz to force a retrain.")
 else:
     run([sys.executable, str(ROOT / "train_model.py")])
 
 step("All done! Backend is ready. Start the API with:  uvicorn main:app --reload")
+
