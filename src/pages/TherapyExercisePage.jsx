@@ -18,13 +18,10 @@ import {
   Flame,
   Plus,
   Trophy,
-  Volume2,
-  VolumeX,
   PlayCircle,
 } from "lucide-react"
 import { getToken, API_BASE } from "@/lib/auth"
 import { useUser } from "@/lib/UserContext"
-import MouthViseme from "@/components/ui/MouthViseme"
 import TalkingHeadAvatar from "@/components/ui/TalkingHeadAvatar"
 
 // ── Convert any audio blob to 16 kHz mono WAV ────────────────────────────────
@@ -86,73 +83,6 @@ function HighlightedText({ text, activeWord }) {
       })}
     </span>
   )
-}
-
-// ── Map a word's first character to a viseme shape ───────────────────────────
-function charToViseme(char) {
-  const c = (char || "").toLowerCase()
-  if (c === "a")          return "A"
-  if (c === "e")          return "E"
-  if ("iy".includes(c))  return "I"
-  if (c === "o")          return "O"
-  if ("uw".includes(c))  return "U"
-  if ("mbp".includes(c)) return "M"
-  if ("fv".includes(c))  return "F"
-  if (/[a-z]/.test(c))   return "I"  // any other consonant — open talking
-  return "rest"
-}
-
-// ── TTS hook ─────────────────────────────────────────────────────────────────
-function useTTS(onViseme, onWord) {
-  const [speaking, setSpeaking] = useState(false)
-  const timerRef = useRef(null)
-
-  // Idle cycle keeps mouth animating between word-boundary events
-  const CYCLE = ["I", "A", "I", "E", "I", "M", "I", "O", "I", "U"]
-
-  function speak(text) {
-    window.speechSynthesis.cancel()
-    clearInterval(timerRef.current)
-    const utter = new SpeechSynthesisUtterance(text)
-    utter.rate = 0.92
-
-    // Word-boundary events → accurate first-char viseme + word highlight
-    utter.addEventListener("boundary", e => {
-      if (e.name !== "word") return
-      const word = text.slice(e.charIndex, e.charIndex + (e.charLength ?? 6))
-      onViseme?.(charToViseme(word[0] ?? ""))
-      onWord?.(word.toLowerCase().replace(/[^a-z']/g, ""))
-    })
-
-    let ci = 0
-    utter.onstart = () => {
-      setSpeaking(true)
-      timerRef.current = setInterval(() => {
-        onViseme?.(CYCLE[ci++ % CYCLE.length])
-      }, 145)
-    }
-
-    const cleanup = () => {
-      clearInterval(timerRef.current)
-      setSpeaking(false)
-      onViseme?.("rest")
-      onWord?.("")
-    }
-    utter.onend   = cleanup
-    utter.onerror = cleanup
-
-    window.speechSynthesis.speak(utter)
-  }
-
-  function stop() {
-    window.speechSynthesis.cancel()
-    clearInterval(timerRef.current)
-    setSpeaking(false)
-    onViseme?.("rest")
-    onWord?.("")
-  }
-
-  return { speaking, speak, stop }
 }
 
 // ── Mini recorder hook ────────────────────────────────────────────────────────
@@ -237,17 +167,13 @@ export default function TherapyExercisePage() {
 
   const recorder = useMiniRecorder(token)
   const avatarRef = useRef(null)
-  const [viseme, setViseme]       = useState("rest")
   const [speaking, setSpeaking]   = useState(false)
   const [activeWord, setActiveWord] = useState("")
-  const tts = useTTS(setViseme, setActiveWord)  // fallback TTS + word highlight
 
   useEffect(() => { loadTodayPlan() }, [])
   useEffect(() => {
     recorder.reset()
-    // Stop both avatar and fallback TTS when navigating exercises
     avatarRef.current?.stop()
-    tts.stop()
     setActiveWord("")
   }, [current])
 
@@ -557,31 +483,24 @@ export default function TherapyExercisePage() {
                       {isCompleted && <Badge variant="mild">Done</Badge>}
                       <button
                         onClick={() => {
-                          const isSpeaking = speaking || tts.speaking
-                          if (isSpeaking) {
+                          if (speaking) {
                             avatarRef.current?.stop()
-                            tts.stop()
                             setSpeaking(false)
                             setActiveWord("")
                           } else {
                             const parts = [exercise.title, exercise.instruction]
                             if (exercise.prompt) parts.push("Practice prompt: " + exercise.prompt)
-                            const text = parts.join(". ")
-                            if (avatarRef.current) {
-                              avatarRef.current.speak(text, setActiveWord)
-                            } else {
-                              tts.speak(text)
-                            }
+                            avatarRef.current?.speak(parts.join(". "), setActiveWord)
                           }
                         }}
-                        title={(speaking || tts.speaking) ? "Stop" : "Read aloud"}
+                        title={speaking ? "Stop" : "Read aloud"}
                         className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                          (speaking || tts.speaking)
+                          speaking
                             ? "bg-red-50 text-red-500 hover:bg-red-100 border border-red-200"
                             : "bg-[#2A9D8F]/10 text-[#2A9D8F] hover:bg-[#2A9D8F]/20 border border-[#2A9D8F]/30"
                         }`}
                       >
-                        {(speaking || tts.speaking)
+                        {speaking
                           ? <><StopCircle className="h-3.5 w-3.5" /> Stop</>
                           : <><PlayCircle className="h-3.5 w-3.5" /> Read aloud</>}
                       </button>
@@ -597,12 +516,9 @@ export default function TherapyExercisePage() {
                     className="w-full h-52"
                   />
 
-                  {/* Instruction + fallback viseme (shown while avatar loads / on error) */}
-                  <div className="flex flex-col sm:flex-row gap-4 items-center sm:items-start">
-                    <MouthViseme viseme={tts.speaking ? viseme : "rest"} speaking={tts.speaking} />
-                    <div className="rounded-md border border-[#e2e8f0] bg-[#F1F5F9] p-4 flex-1 w-full">
-                      <p className="text-sm text-[#334155] leading-relaxed"><HighlightedText text={exercise.instruction} activeWord={activeWord} /></p>
-                    </div>
+                  {/* Instruction */}
+                  <div className="rounded-md border border-[#e2e8f0] bg-[#F1F5F9] p-4 w-full">
+                    <p className="text-sm text-[#334155] leading-relaxed"><HighlightedText text={exercise.instruction} activeWord={activeWord} /></p>
                   </div>
 
                   {/* Prompt */}
